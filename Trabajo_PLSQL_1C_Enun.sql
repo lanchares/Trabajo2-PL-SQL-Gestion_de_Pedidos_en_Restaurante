@@ -164,6 +164,10 @@ EXCEPTION
         -- Relanzar la excepción
         RAISE;
 END;
+<<<<<<< HEAD
+=======
+/
+>>>>>>> refs/remotes/origin/PLSQL
 
 ------ Deja aquí tus respuestas a las preguntas del enunciado:
 -- NO SE CORREGIRÁN RESPUESTAS QUE NO ESTÉN AQUÍ (utiliza el espacio que necesites apra cada una)
@@ -233,11 +237,90 @@ exec inicializa_test;
 
 create or replace procedure test_registrar_pedido is
 begin
-	 
-  --caso 1 Pedido correct, se realiza
-  begin
-    inicializa_test;
-  end;
+    -- Caso 1: Pedido correcto, se realiza
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 1: Pedido correcto con primer plato');
+        registrar_pedido(1, 1, 1, NULL);
+        DBMS_OUTPUT.PUT_LINE('Test 1: OK - Pedido registrado correctamente');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Test 1: ERROR - ' || SQLERRM);
+    END;
+    
+    -- Caso 2: Pedido correcto con dos platos
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 2: Pedido correcto con dos platos');
+        registrar_pedido(1, 1, 1, 2);
+        DBMS_OUTPUT.PUT_LINE('Test 2: OK - Pedido con dos platos registrado correctamente');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Test 2: ERROR - ' || SQLERRM);
+    END;
+    
+    -- Caso 3: Pedido vacío (sin platos)
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 3: Pedido vacío (sin platos)');
+        registrar_pedido(1, 1, NULL, NULL);
+        DBMS_OUTPUT.PUT_LINE('Test 3: ERROR - No se lanzó la excepción esperada');
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF SQLCODE = -20002 THEN
+                DBMS_OUTPUT.PUT_LINE('Test 3: OK - ' || SQLERRM);
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Test 3: ERROR - Excepción incorrecta: ' || SQLERRM);
+            END IF;
+    END;
+    
+    -- Caso 4: Pedido con plato que no existe
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 4: Pedido con plato inexistente');
+        registrar_pedido(1, 1, 99, NULL);
+        DBMS_OUTPUT.PUT_LINE('Test 4: ERROR - No se lanzó la excepción esperada');
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF SQLCODE = -20004 THEN
+                DBMS_OUTPUT.PUT_LINE('Test 4: OK - ' || SQLERRM);
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Test 4: ERROR - Excepción incorrecta: ' || SQLERRM);
+            END IF;
+    END;
+    
+    -- Caso 5: Pedido con plato no disponible
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 5: Pedido con plato no disponible');
+        registrar_pedido(1, 1, 3, NULL);
+        DBMS_OUTPUT.PUT_LINE('Test 5: ERROR - No se lanzó la excepción esperada');
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF SQLCODE = -20001 THEN
+                DBMS_OUTPUT.PUT_LINE('Test 5: OK - ' || SQLERRM);
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Test 5: ERROR - Excepción incorrecta: ' || SQLERRM);
+            END IF;
+    END;
+    
+    -- Caso 6: Personal con demasiados pedidos activos
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 6: Personal con demasiados pedidos');
+        registrar_pedido(1, 2, 1, NULL); -- María tiene 5 pedidos activos
+        DBMS_OUTPUT.PUT_LINE('Test 6: ERROR - No se lanzó la excepción esperada');
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF SQLCODE = -20003 THEN
+                DBMS_OUTPUT.PUT_LINE('Test 6: OK - ' || SQLERRM);
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Test 6: ERROR - Excepción incorrecta: ' || SQLERRM);
+            END IF;
+    END;
+END;
+/
+  
   
   -- Idem para el resto de casos
 
@@ -248,8 +331,7 @@ begin
      - ... los que os puedan ocurrir que puedan ser necesarios para comprobar el correcto funcionamiento del procedimiento
 */
   
-end;
-/
+
 
 
 set serveroutput on;
