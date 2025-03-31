@@ -1,5 +1,4 @@
-# Aplicaciones-Bases-de-Datos
-## Trabajo2-PL-SQL-Gestion_de_Pedidos_en_Restaurante
+# Aplicaciones-Bases-de-Datos: Trabajo PL/SQL - Gestion_de_Pedidos_en_Restaurante
 Repositorio de GitHub para la asignatura Aplicaciones de Bases de Datos, Ingeniería Informática, UBU.
 <br><br>
 
