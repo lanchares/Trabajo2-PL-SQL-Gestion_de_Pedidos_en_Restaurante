@@ -58,9 +58,112 @@ create or replace procedure registrar_pedido(
     arg_id_primer_plato INTEGER DEFAULT NULL,
     arg_id_segundo_plato INTEGER DEFAULT NULL
 ) is 
- begin
-  null; -- sustituye esta línea por tu código
-end;
+    v_pedidos_activos INTEGER;           -- Almacena el número de pedidos activos del personal
+    v_disponible_primer_plato INTEGER;   -- Indica si el primer plato está disponible (1) o no (0)
+    v_disponible_segundo_plato INTEGER;  -- Indica si el segundo plato está disponible (1) o no (0)
+    v_precio_primer_plato DECIMAL(10,2); -- Almacena el precio del primer plato
+    v_precio_segundo_plato DECIMAL(10,2);-- Almacena el precio del segundo plato
+    v_total DECIMAL(10,2) := 0;          -- Acumula el precio total del pedido
+    v_nuevo_id_pedido INTEGER;           -- Guarda el ID generado para el nuevo pedido
+    v_existe_primer_plato INTEGER := 0;  -- Verifica si el primer plato existe en la BD
+    v_existe_segundo_plato INTEGER := 0; -- Verifica si el segundo plato existe en la BD
+
+BEGIN
+    -- Paso 0: Comprobar que el pedido contiene al menos un plato
+    IF arg_id_primer_plato IS NULL AND arg_id_segundo_plato IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20002, 'El pedido debe contener al menos un plato.');
+    END IF;
+    
+    -- Paso 1: Comprobar que los platos existen y están disponibles
+    -- Verificar primer plato si se ha solicitado
+    IF arg_id_primer_plato IS NOT NULL THEN
+        -- Verificar si el plato existe
+        SELECT COUNT(*) INTO v_existe_primer_plato 
+        FROM platos 
+        WHERE id_plato = arg_id_primer_plato;
+        
+        IF v_existe_primer_plato = 0 THEN
+            RAISE_APPLICATION_ERROR(-20004, 'El primer plato seleccionado no existe');
+        END IF;
+        
+        -- Verificar si el plato está disponible
+        SELECT disponible, precio INTO v_disponible_primer_plato, v_precio_primer_plato 
+        FROM platos 
+        WHERE id_plato = arg_id_primer_plato;
+        
+        IF v_disponible_primer_plato = 0 THEN
+            RAISE_APPLICATION_ERROR(-20001, 'Uno de los platos seleccionados no está disponible.');
+        END IF;
+        
+        v_total := v_total + v_precio_primer_plato;
+    END IF;
+    
+    -- Verificar segundo plato si se ha solicitado
+    IF arg_id_segundo_plato IS NOT NULL THEN
+        -- Verificar si el plato existe
+        SELECT COUNT(*) INTO v_existe_segundo_plato 
+        FROM platos 
+        WHERE id_plato = arg_id_segundo_plato;
+        
+        IF v_existe_segundo_plato = 0 THEN
+            RAISE_APPLICATION_ERROR(-20004, 'El segundo plato seleccionado no existe');
+        END IF;
+        
+        -- Verificar si el plato está disponible
+        SELECT disponible, precio INTO v_disponible_segundo_plato, v_precio_segundo_plato 
+        FROM platos 
+        WHERE id_plato = arg_id_segundo_plato;
+        
+        IF v_disponible_segundo_plato = 0 THEN
+            RAISE_APPLICATION_ERROR(-20001, 'Uno de los platos seleccionados no está disponible.');
+        END IF;
+        
+        v_total := v_total + v_precio_segundo_plato;
+    END IF;
+    
+    -- Paso 2: Comprobar que el personal de servicio puede atender más pedidos
+    SELECT pedidos_activos INTO v_pedidos_activos 
+    FROM personal_servicio 
+    WHERE id_personal = arg_id_personal 
+    FOR UPDATE; -- Bloqueo para evitar condiciones de carrera
+    
+    IF v_pedidos_activos >= 5 THEN
+        RAISE_APPLICATION_ERROR(-20003, 'El personal de servicio tiene demasiados pedidos.');
+    END IF;
+    
+    -- Paso 3: Formalizar el pedido (las tres acciones en una transacción)
+    -- 3.1: Añadir el pedido a la tabla pedidos
+    SELECT seq_pedidos.NEXTVAL INTO v_nuevo_id_pedido FROM dual;
+    
+    INSERT INTO pedidos (id_pedido, id_cliente, id_personal, fecha_pedido, total)
+    VALUES (v_nuevo_id_pedido, arg_id_cliente, arg_id_personal, SYSDATE, v_total);
+    
+    -- 3.2: Añadir los detalles de pedido a la tabla detalle_pedido
+    IF arg_id_primer_plato IS NOT NULL THEN
+        INSERT INTO detalle_pedido (id_pedido, id_plato, cantidad)
+        VALUES (v_nuevo_id_pedido, arg_id_primer_plato, 1);
+    END IF;
+    
+    IF arg_id_segundo_plato IS NOT NULL THEN
+        INSERT INTO detalle_pedido (id_pedido, id_plato, cantidad)
+        VALUES (v_nuevo_id_pedido, arg_id_segundo_plato, 1);
+    END IF;
+    
+    -- 3.3: Actualizar la tabla de personal_servicio
+    UPDATE personal_servicio
+    SET pedidos_activos = pedidos_activos + 1
+    WHERE id_personal = arg_id_personal;
+    
+    -- Confirmar transacción
+    COMMIT;
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Deshacer cambios en caso de error
+        ROLLBACK;
+        -- Relanzar la excepción
+        RAISE;
+END;
 /
 
 ------ Deja aquí tus respuestas a las preguntas del enunciado:
@@ -131,11 +234,90 @@ exec inicializa_test;
 
 create or replace procedure test_registrar_pedido is
 begin
-	 
-  --caso 1 Pedido correct, se realiza
-  begin
-    inicializa_test;
-  end;
+    -- Caso 1: Pedido correcto, se realiza
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 1: Pedido correcto con primer plato');
+        registrar_pedido(1, 1, 1, NULL);
+        DBMS_OUTPUT.PUT_LINE('Test 1: OK - Pedido registrado correctamente');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Test 1: ERROR - ' || SQLERRM);
+    END;
+    
+    -- Caso 2: Pedido correcto con dos platos
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 2: Pedido correcto con dos platos');
+        registrar_pedido(1, 1, 1, 2);
+        DBMS_OUTPUT.PUT_LINE('Test 2: OK - Pedido con dos platos registrado correctamente');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Test 2: ERROR - ' || SQLERRM);
+    END;
+    
+    -- Caso 3: Pedido vacío (sin platos)
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 3: Pedido vacío (sin platos)');
+        registrar_pedido(1, 1, NULL, NULL);
+        DBMS_OUTPUT.PUT_LINE('Test 3: ERROR - No se lanzó la excepción esperada');
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF SQLCODE = -20002 THEN
+                DBMS_OUTPUT.PUT_LINE('Test 3: OK - ' || SQLERRM);
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Test 3: ERROR - Excepción incorrecta: ' || SQLERRM);
+            END IF;
+    END;
+    
+    -- Caso 4: Pedido con plato que no existe
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 4: Pedido con plato inexistente');
+        registrar_pedido(1, 1, 99, NULL);
+        DBMS_OUTPUT.PUT_LINE('Test 4: ERROR - No se lanzó la excepción esperada');
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF SQLCODE = -20004 THEN
+                DBMS_OUTPUT.PUT_LINE('Test 4: OK - ' || SQLERRM);
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Test 4: ERROR - Excepción incorrecta: ' || SQLERRM);
+            END IF;
+    END;
+    
+    -- Caso 5: Pedido con plato no disponible
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 5: Pedido con plato no disponible');
+        registrar_pedido(1, 1, 3, NULL);
+        DBMS_OUTPUT.PUT_LINE('Test 5: ERROR - No se lanzó la excepción esperada');
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF SQLCODE = -20001 THEN
+                DBMS_OUTPUT.PUT_LINE('Test 5: OK - ' || SQLERRM);
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Test 5: ERROR - Excepción incorrecta: ' || SQLERRM);
+            END IF;
+    END;
+    
+    -- Caso 6: Personal con demasiados pedidos activos
+    BEGIN
+        inicializa_test;
+        DBMS_OUTPUT.PUT_LINE('Test 6: Personal con demasiados pedidos');
+        registrar_pedido(1, 2, 1, NULL); -- María tiene 5 pedidos activos
+        DBMS_OUTPUT.PUT_LINE('Test 6: ERROR - No se lanzó la excepción esperada');
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF SQLCODE = -20003 THEN
+                DBMS_OUTPUT.PUT_LINE('Test 6: OK - ' || SQLERRM);
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Test 6: ERROR - Excepción incorrecta: ' || SQLERRM);
+            END IF;
+    END;
+END;
+/
+  
   
   -- Idem para el resto de casos
 
@@ -146,8 +328,7 @@ begin
      - ... los que os puedan ocurrir que puedan ser necesarios para comprobar el correcto funcionamiento del procedimiento
 */
   
-end;
-/
+
 
 
 set serveroutput on;
