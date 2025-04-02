@@ -6,11 +6,7 @@ DROP TABLE clientes CASCADE CONSTRAINTS;
 
 DROP SEQUENCE seq_pedidos;
 
-
 -- Creación de tablas y secuencias
-
-
-
 create sequence seq_pedidos;
 
 CREATE TABLE clientes (
@@ -48,10 +44,8 @@ CREATE TABLE detalle_pedido (
     cantidad INTEGER NOT NULL,
     PRIMARY KEY (id_pedido, id_plato)
 );
-
-
 	
--- Procedimiento a implementar para realizar la reserva
+-- Procedimiento para realizar la reserva
 create or replace procedure registrar_pedido(
     arg_id_cliente      INTEGER, 
     arg_id_personal     INTEGER, 
@@ -69,12 +63,12 @@ create or replace procedure registrar_pedido(
     v_existe_segundo_plato INTEGER := 0; -- Verifica si el segundo plato existe en la BD
 
 BEGIN
-    -- Paso 0: Comprobar que el pedido contiene al menos un plato
+    -- Comprobar que el pedido contiene al menos un plato
     IF arg_id_primer_plato IS NULL AND arg_id_segundo_plato IS NULL THEN
         RAISE_APPLICATION_ERROR(-20002, 'El pedido debe contener al menos un plato.');
     END IF;
     
-    -- Paso 1: Comprobar que los platos existen y están disponibles
+    -- Comprobar que los platos existen y están disponibles
     -- Verificar primer plato si se ha solicitado
     IF arg_id_primer_plato IS NOT NULL THEN
         -- Verificar si el plato existe
@@ -121,7 +115,7 @@ BEGIN
         v_total := v_total + v_precio_segundo_plato;
     END IF;
     
-    -- Paso 2: Comprobar que el personal de servicio puede atender más pedidos
+    -- Comprobar que el personal de servicio puede atender más pedidos
     SELECT pedidos_activos INTO v_pedidos_activos 
     FROM personal_servicio 
     WHERE id_personal = arg_id_personal 
@@ -131,14 +125,13 @@ BEGIN
         RAISE_APPLICATION_ERROR(-20003, 'El personal de servicio tiene demasiados pedidos.');
     END IF;
     
-    -- Paso 3: Formalizar el pedido (las tres acciones en una transacción)
-    -- 3.1: Añadir el pedido a la tabla pedidos
+    -- Añadir el pedido a la tabla pedidos
     SELECT seq_pedidos.NEXTVAL INTO v_nuevo_id_pedido FROM dual;
     
     INSERT INTO pedidos (id_pedido, id_cliente, id_personal, fecha_pedido, total)
     VALUES (v_nuevo_id_pedido, arg_id_cliente, arg_id_personal, SYSDATE, v_total);
     
-    -- 3.2: Añadir los detalles de pedido a la tabla detalle_pedido
+    -- Añadir los detalles de pedido a la tabla detalle_pedido
     IF arg_id_primer_plato IS NOT NULL THEN
         INSERT INTO detalle_pedido (id_pedido, id_plato, cantidad)
         VALUES (v_nuevo_id_pedido, arg_id_primer_plato, 1);
@@ -149,7 +142,7 @@ BEGIN
         VALUES (v_nuevo_id_pedido, arg_id_segundo_plato, 1);
     END IF;
     
-    -- 3.3: Actualizar la tabla de personal_servicio
+    -- Actualizar la tabla de personal_servicio
     UPDATE personal_servicio
     SET pedidos_activos = pedidos_activos + 1
     WHERE id_personal = arg_id_personal;
@@ -269,11 +262,12 @@ exec inicializa_test;
 
 create or replace procedure test_registrar_pedido is
 begin
-    -- Caso 1: Pedido correcto, se realiza
+    -- Caso 1: Pedido correcto.
     BEGIN
         inicializa_test;
-        DBMS_OUTPUT.PUT_LINE('Test 1: Pedido correcto con primer plato');
+        DBMS_OUTPUT.PUT_LINE('Test 1: Pedido correcto con primer plato o segundo');
         registrar_pedido(1, 1, 1, NULL);
+        registrar_pedido(2, 1, NULL, 1);
         DBMS_OUTPUT.PUT_LINE('Test 1: OK - Pedido registrado correctamente');
     EXCEPTION
         WHEN OTHERS THEN
