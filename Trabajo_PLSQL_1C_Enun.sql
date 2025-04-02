@@ -1,3 +1,6 @@
+-- Enlace al repositorio github, esta hecho en la rama PLSQL, no en el main.
+-- https://github.com/lanchares/Trabajo2-PL-SQL-Gestion_de_Pedidos_en_Restaurante/tree/PLSQL
+
 DROP TABLE detalle_pedido CASCADE CONSTRAINTS;
 DROP TABLE pedidos CASCADE CONSTRAINTS;
 DROP TABLE platos CASCADE CONSTRAINTS;
