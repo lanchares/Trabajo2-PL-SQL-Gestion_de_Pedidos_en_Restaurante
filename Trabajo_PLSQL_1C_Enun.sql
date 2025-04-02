@@ -168,16 +168,52 @@ END;
 
 ------ Deja aquí tus respuestas a las preguntas del enunciado:
 -- NO SE CORREGIRÁN RESPUESTAS QUE NO ESTÉN AQUÍ (utiliza el espacio que necesites apra cada una)
+	
 -- * P4.1
---
+	
+-- Garantizo que un miembro del personal de servicio no supere el límite de pedidos activos verificando la columna pedidos_activos en la tabla personal_servicio antes de asignar un nuevo pedido. Si el número de pedidos activos ya es 5 o más, se lanza un error y se aborta la operación.
+	
 -- * P4.2
---
+	
+-- Para evitar que dos transacciones concurrentes asignen un pedido al mismo personal de servicio cuando sus pedidos activos están cerca del límite, utilizo una cláusula FOR UPDATE en la consulta que obtiene pedidos_activos. Esto bloquea la fila correspondiente en la tabla personal_servicio, impidiendo que otra transacción la modifique hasta que la actual finalice (ya sea con COMMIT o ROLLBACK).
+	
 -- * P4.3
---
+	
+--  Sí, puedo asegurar que el pedido se realiza de manera correcta en el paso 4 y que no se generan inconsistencias porque:
+
+		-- Bloqueo de la fila de personal_servicio: Se evita que otro proceso modifique el número de pedidos activos antes de que termine la transacción.
+
+		-- Verificación de la disponibilidad de los platos: Antes de insertar el pedido, se comprueba que los platos existen y están disponibles.
+
+		-- Transacción atómica: Todo el proceso (inserción del pedido, actualización de personal_servicio y detalle_pedido) se ejecuta dentro de una única transacción. Si ocurre un error en cualquier parte, se ejecuta un ROLLBACK, evitando inconsistencias en la base de datos.
+	
 -- * P4.4
---
+	
+-- Si añadiéramos CHECK (pedidos_activos ≤ 5) en la tabla personal_servicio, habría implicaciones en la gestión de excepciones:
+
+	-- No sería suficiente para evitar condiciones de carrera: El CHECK solo impide valores inválidos en la columna, pero no previene la posibilidad de que dos transacciones concurrentes lean el mismo valor y ambas intenten aumentar pedidos_activos a un valor mayor a 5 antes de que se valide la restricción.
+-- Se generarían errores de integridad en vez de errores controlados: En lugar de lanzar un error específico (RAISE_APPLICATION_ERROR(-20003, 'El personal de servicio tiene demasiados pedidos.')), la base de datos lanzaría un error genérico de restricción de CHECK, lo que dificultaría el control en el procedimiento.
+
+-- Para solucionar esto, debería:
+	-- Mantener el FOR UPDATE para evitar condiciones de carrera.
+	-- Capturar la excepción de CHECK y traducirla a un mensaje más claro antes de propagarla.
+	-- Asegurarme de que la lógica en el procedimiento sigue verificando pedidos_activos antes de actualizarlo, en lugar de confiar únicamente en la restricción CHECK.
+
+	
 -- * P4.5
--- 
+	
+-- La estrategia de programación utilizada es programación defensiva y control de concurrencia.
+
+-- Programación Defensiva
+-- Se verifica activamente que los datos sean válidos antes de realizar cualquier modificación en la base de datos. Esto se ve en:
+-- La comprobación de que pedidos_activos < 5 antes de asignar un nuevo pedido.
+-- La validación de la disponibilidad de los platos antes de insertarlos en detalle_pedido
+-- El manejo explícito de errores mediante excepciones (RAISE_APPLICATION_ERROR) para evitar inconsistencias.
+
+-- Control de Concurrencia
+-- Se usa SELECT ... FOR UPDATE para bloquear la fila de personal_servicio y evitar condiciones de carrera cuando varias transacciones intentan asignar pedidos al mismo miembro del personal simultáneamente.
+
+-- Estas estrategias se reflejan en el código en las secciones donde se validan los límites de pedidos_activos, se bloquean registros con FOR UPDATE y se capturan excepciones para garantizar la coherencia de los datos.
 
 
 create or replace
